@@ -1,6 +1,11 @@
 import CLibsql
 import Foundation
 
+enum LibSQLError: Error {
+	case nullColumnName
+	case invalidColumnCount
+}
+
 public enum Value {
     case integer(Int64)
     case text(String)
@@ -98,7 +103,52 @@ public class Row {
         }
 
         self.inner = inner
-    }
+	}
+	
+	
+	
+//	/// Returns the column name at the given index for a given Row
+//	func getColumnName(for row: Row, at index: Int32) throws -> String {
+//		let result = libsql_row_name(row, index)
+//		return result.ptr.assumingMemoryBound(to: UInt8.self).withMemoryRebound(to: Int8.self, capacity: Int(result.len)) {
+//			String(cString: $0)
+//		}
+//	}
+//	
+//	/// Returns the number of columns in the given Row
+//	func getColumnCount(for row: Row) throws -> Int32 {
+//		return libsql_row_length(row)
+//	}
+
+	
+	public func getColumnName(_ index: Int32) throws -> String {
+		let result = libsql_row_name(self.inner, index)
+		
+		// Ensure pointer is not NULL before converting
+		guard let rawPtr = result.ptr else {
+			throw LibSQLError.nullColumnName
+		}
+		
+		// Convert UnsafeRawPointer to UnsafePointer<CChar>
+		let ptr = rawPtr.assumingMemoryBound(to: CChar.self)
+		
+		return String(cString: ptr)
+	}
+
+	
+
+	
+	public func getColumnCount() throws -> Int32 {
+		let count = libsql_row_length(self.inner)
+		
+		// Ensure count is valid
+		guard count >= 0 else {
+			throw LibSQLError.invalidColumnCount
+		}
+		
+		return count
+	}
+
     
     public func get(_ index: Int32) throws -> Value {
         let result = libsql_row_value(self.inner, index)
@@ -173,7 +223,7 @@ public class Rows: Sequence, IteratorProtocol {
         }
         
         return Row(from: row)
-    }
+	}
 }
 
 public class Statement {
